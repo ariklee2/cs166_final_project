@@ -156,10 +156,13 @@ useEffect(() => {
         </div>
 
         <div className="flex items-center gap-4">
-          <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg">
-            @{loggedInUser}
-          </span>
-          <button onClick={() => navigate("/")} className="text-xs font-medium text-slate-400 hover:text-red-500 transition-colors">Logout</button>
+          <button 
+              onClick={() => navigate("/profile", { state: { username: loggedInUser } })}
+              className="text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              @{loggedInUser}
+          </button>
+          <button onClick={() => navigate("/login")} className="text-xs font-medium text-slate-400 hover:text-red-500 transition-colors">Logout</button>
         </div>
       </header>
 
@@ -214,7 +217,19 @@ useEffect(() => {
                             <p className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Current Bid</p>
                             <p className="text-lg font-bold" style={{ color: DARK_BLUE }}>${Number(item.current_bid).toFixed(2)}</p>
                           </div>
-                          <button className="px-4 py-2 text-xs font-semibold text-white rounded-xl shadow-xs" style={{ background: DARK_BLUE }}>Place Bid</button>
+                          <button onClick={() => navigate("/bid", {
+                            state: {
+                              item_id: item.id,
+                              item_name: item.item_name,
+                              current_bid: item.current_bid,
+                              image_url: item.image_url,
+                              username: loggedInUser
+                            }
+                          })}
+                          className="px-4 py-2 text-xs font-semibold text-white rounded-xl shadow-xs" 
+                          style={{ background: DARK_BLUE }}>
+                            Place Bid
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -228,7 +243,7 @@ useEffect(() => {
         {activeTab === "sell" && (
           <div className="max-w-2xl mx-auto bg-white border border-slate-100 p-8 rounded-2xl shadow-xs">
             <h2 className="text-2xl font-bold mb-1" style={{ color: DARK_BLUE, fontFamily: "'Sora', sans-serif" }}>Host a New Auction</h2>
-            <p className="text-slate-400 text-sm mb-6">List an item to store it securely in the relational tables.</p>
+            <p className="text-slate-400 text-sm mb-6">List an item.</p>
 
             <form onSubmit={handleAuctionSubmit} className="space-y-5">
               <div>
