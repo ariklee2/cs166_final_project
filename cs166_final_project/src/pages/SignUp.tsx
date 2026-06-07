@@ -332,7 +332,7 @@ export function SignUp() {
 
           <p className="text-center text-xs mt-5" style={{ color: "#94a3b8" }}>
             Already have an account?{" "}
-            <a href="#" className="font-semibold hover:underline underline-offset-2" style={{ color: ACCENT_BLUE }}>
+            <a onClick={() => navigate("/login")} className="font-semibold hover:underline underline-offset-2" style={{ color: ACCENT_BLUE }}>
               Login
             </a>
           </p>

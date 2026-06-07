@@ -50,7 +50,49 @@ def signup():
         if cur: cur.close()
         if conn: conn.close()
 
-# --- NEW: ROUTE TO SUBMIT AND CREATE AN AUCTION ITEM ---
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.json
+    login_input = data.get('username')
+    password_input = data.get('password')
+
+    if not login_input or not password_input:
+        return jsonify({"error": "Username and password are required"}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        # Using RealDictCursor so data rows look like dictionaries
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Query the exact matching username identifier
+        query = "SELECT login, password, role FROM users WHERE login = %s;"
+        cur.execute(query, (login_input,))
+        user_record = cur.fetchone()
+
+        # Validation Rule: Check if user exists
+        if not user_record:
+            return jsonify({"error": "Invalid username or password configuration."}), 401
+
+        # Validation Rule: Check password directly
+        if user_record['password'] != password_input:
+            return jsonify({"error": "Invalid username or password configuration."}), 401
+
+        # Success match found
+        return jsonify({
+            "message": "Login authorization successful!",
+            "login": user_record['login'],
+            "role": user_record['role']
+        }), 200
+
+    except Exception as e:
+        print(f"Database Auth Failure Error: {e}")
+        return jsonify({"error": "Internal database server structural error"}), 500
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
 @app.route('/auction', methods=['POST'])
 def create_auction():
     data = request.json
@@ -115,7 +157,6 @@ def create_auction():
         if cur: cur.close()
         if conn: conn.close()
 
-# --- REFACTORED: FETCHING TO DISCOVER REAL LISTINGS ---
 @app.route('/api/items', methods=['GET'])
 def get_items():
     conn = None
