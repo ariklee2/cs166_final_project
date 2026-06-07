@@ -31,7 +31,7 @@ cur.execute("""
         image_url VARCHAR(255),
         item_condition VARCHAR(50),
         description TEXT,
-            
+        
         seller_login VARCHAR(50) NOT NULL,
         seller_role VARCHAR(10) NOT NULL DEFAULT 'Seller' CHECK (seller_role = 'Seller'),
         FOREIGN KEY (seller_login, seller_role) REFERENCES users(login, role)
@@ -63,7 +63,7 @@ cur.execute("""
             ON UPDATE CASCADE
             ON DELETE SET NULL
     );
-
+            
 
     CREATE TABLE bid (
         bid_id INT PRIMARY KEY,
