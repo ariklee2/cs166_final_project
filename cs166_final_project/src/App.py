@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor
-import random # Used to generate random integer IDs since schema doesn't use SERIAL
+import random # Used to generate random integer IDs
 
 app = Flask(__name__)
 CORS(app)
@@ -186,6 +186,136 @@ def get_items():
     except Exception as e:
         print(f"Fetch Error: {e}")
         return jsonify({"error": "Failed to fetch items"}), 500
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+@app.route('/api/bid', methods=['POST'])
+def place_bid():
+    data = request.json
+    item_id = data.get('item_id')
+    buyer_login = data.get('buyer_login')
+    bid_amount = data.get('bid_amount')
+    buyer_role = 'Buyer' # Hardcoded to bypass schema default CHECK layout constraint
+
+    if not all([item_id, buyer_login, bid_amount]):
+        return jsonify({"error": "Missing item target context or pricing parameters"}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # 1. Look up the matching active auction_id linked to the selected item
+        cur.execute("SELECT auction_id, current_highest_bid FROM auction WHERE item_id = %s FOR UPDATE;", (item_id,))
+        auction_record = cur.fetchone()
+
+        if not auction_record:
+            return jsonify({"error": "No matching active auction found for this item."}), 404
+
+        # 2. Server-side validation: Double check that the bid isn't beaten by another user in the interim
+        if float(bid_amount) <= float(auction_record['current_highest_bid']):
+            return jsonify({"error": f"Bid too low. Someone else already bid ${auction_record['current_highest_bid']}"}), 400
+
+        auction_id = auction_record['auction_id']
+        bid_id = random.randint(1000, 999999) # Generating unique int ID since schema doesn't use SERIAL
+
+        # 3. Step One: Insert record into the BID table
+        insert_bid_query = """
+            INSERT INTO bid (bid_id, auction_id, buyer_login, buyer_role, bid_amount)
+            VALUES (%s, %s, %s, %s, %s);
+        """
+        cur.execute(insert_bid_query, (bid_id, auction_id, buyer_login, buyer_role, bid_amount))
+
+        # 4. Step Two: Keep tables in sync by updating AUCTION's highest tracking bracket
+        update_auction_query = """
+            UPDATE auction 
+            SET current_highest_bid = %s 
+            WHERE auction_id = %s;
+        """
+        cur.execute(update_auction_query, (bid_amount, auction_id))
+
+        # Commit everything as an atomic transaction block
+        conn.commit()
+        return jsonify({"message": "Bid successfully placed and synced!", "bid_id": bid_id}), 201
+
+    except psycopg2.IntegrityError as e:
+        if conn: conn.rollback()
+        print(f"Integrity Constraint Failure: {e}")
+        return jsonify({"error": "User account permission alignment structural failure."}), 400
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"Bidding Processing Error Exception: {e}")
+        return jsonify({"error": "Internal ledger server processing failure"}), 500
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+@app.route('/api/user/profile', methods=['GET'])
+def get_user_profile():
+    username = request.args.get('username')
+    if not username:
+        return jsonify({"error": "Missing lookup username context indicator parameter"}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute("SELECT login, password, phone_num, address, role, favorite_category FROM users WHERE login = %s;", (username,))
+        user_data = cur.fetchone()
+        
+        if not user_data:
+            return jsonify({"error": "No matching data record profile found."}), 404
+            
+        return jsonify(user_data), 200
+    except Exception as e:
+        print(f"Profile Read Error Exception: {e}")
+        return jsonify({"error": "Internal ledger extraction database failure"}), 500
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+@app.route('/api/user/update', methods=['PUT'])
+def update_user_profile():
+    data = request.json
+    current_login = data.get('current_login')
+    new_login = data.get('new_login')
+    password = data.get('password')
+    phone_num = data.get('phone_num')
+    address = data.get('address')
+    favorite_category = data.get('favorite_category')
+
+    if not all([current_login, new_login, password, phone_num, address]):
+        return jsonify({"error": "All fundamental core details require structural validation entries."}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Update statement triggers structural CASCADE parameters down constraints cleanly
+        update_query = """
+            UPDATE users 
+            SET login = %s, password = %s, phone_num = %s, address = %s, favorite_category = %s
+            WHERE login = %s;
+        """
+        cur.execute(update_query, (new_login, password, phone_num, address, favorite_category, current_login))
+        conn.commit()
+
+        return jsonify({"message": "Relational structural user layout table updated successfully!", "login": new_login}), 200
+
+    except psycopg2.IntegrityError as e:
+        if conn: conn.rollback()
+        print(f"Update Unique Key Violation: {e}")
+        return jsonify({"error": f"The requested username '{new_login}' is already occupied by another profile index."}), 400
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"Profile Database Mutator Modification Error: {e}")
+        return jsonify({"error": "Internal update processor failure"}), 500
     finally:
         if cur: cur.close()
         if conn: conn.close()
