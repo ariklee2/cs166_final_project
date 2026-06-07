@@ -1,7 +1,15 @@
-function App() {
-  return <div className="font-sans">
-    <h1>Hello World</h1>
-  </div>
-}
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
-export default App;
+import { SignUp } from './pages/SignUp';
+import { Home } from './pages/Home';
+
+export default function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path = '/signup' element = {<SignUp />}/>
+        <Route path = '/home' element = {<Home />}/>
+      </Routes>
+    </Router>
+  );
+}
