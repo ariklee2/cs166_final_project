@@ -187,7 +187,7 @@ useEffect(() => {
                 {filteredListings.map((item) => (
                   <div key={item.id} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs flex flex-col">
                     <div className="relative h-48 bg-slate-100">
-                      <img src={item.image_url} alt={item.item_name} className="w-full h-full object-cover" onError={(e)=>{(e.target as HTMLImageElement).src='https://commons.wikimedia.org/wiki/File:Image_not_available.png';}} />
+                      <img src={item.image_url} alt={item.item_name} className="w-full h-full object-cover" onError={(e)=>{(e.target as HTMLImageElement).src='https://coolbackgrounds.io/white-background/';}} />
                       <span className="absolute top-3 left-3 bg-white/90 text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-md text-slate-700">{item.category}</span>
                       <div className="absolute bottom-3 right-3 bg-slate-900/80 text-white flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md"><ClockIcon/> Active</div>
                     </div>
