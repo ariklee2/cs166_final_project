@@ -112,6 +112,14 @@ cur.execute("""
             ON UPDATE CASCADE
             ON DELETE RESTRICT
     );
+            
+    CREATE TABLE notification (
+        notification_id SERIAL PRIMARY KEY,
+        username VARCHAR(255) NOT NULL, -- Target user who receives the message
+        message TEXT NOT NULL,          -- Notification content
+        is_read BOOLEAN DEFAULT FALSE,   -- Read status tracking
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
 """)
 
 conn.commit()

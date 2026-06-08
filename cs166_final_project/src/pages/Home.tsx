@@ -35,6 +35,13 @@ interface Listing {
   shipping_address?: string | null;
 }
 
+interface NotificationItem {
+  notification_id: number;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 // Icons
 const StoreIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>;
 const SearchIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>;
@@ -78,6 +85,8 @@ export function Home() {
   const [activeTab, setActiveTab] = useState<"buy" | "sell">("buy");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [listings, setListings] = useState<Listing[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [showNotifDropdown, setShowNotifDropdown] = useState<boolean>(false);
 
   // Form Management states
   const [form, setForm] = useState<AuctionFormData>({
@@ -106,6 +115,23 @@ export function Home() {
 
     loadMarketplaceData();
   }, [activeTab]);
+
+  useEffect(() => {
+    if (loggedInUser === "Guest User") return;
+
+    const fetchNotifs = async () => {
+      try {
+        const res = await fetch(`http://127.0.0.1:5000/api/notifications?username=${loggedInUser}`);
+        if (res.ok) setNotifications(await res.json());
+      } catch (err) {
+        console.error("Failed to load notifications hook", err);
+      }
+    };
+
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 10000); // Poll database every 10 seconds
+    return () => clearInterval(interval); // Clean up interval on component unmount
+  }, [loggedInUser]);
 
   const handleFormChange = (field: keyof AuctionFormData) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -183,6 +209,41 @@ export function Home() {
         </div>
 
         <div className="flex items-center gap-4">
+          {/* NOTIFICATION BELL DROP-DOWN LAYOUT */}
+          <div className="relative">
+            <button 
+              onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+              className="p-2 text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all relative cursor-pointer"
+            >
+              {/* Simple Bell Icon */}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+              
+              {/* Unread Indicator Dot */}
+              {notifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white font-bold flex items-center justify-center">
+                  {notifications.length}
+                </span>
+              )}
+            </button>
+
+            {/* DROPDOWN OVERLAY LIST */}
+            {showNotifDropdown && (
+              <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-100 shadow-xl rounded-2xl py-2 z-50 max-h-80 overflow-y-auto">
+                <div className="px-4 py-2 border-b border-slate-50 font-bold text-xs uppercase tracking-wider text-slate-400">
+                  Alerts Feed
+                </div>
+                {notifications.length === 0 ? (
+                  <p className="text-xs text-slate-400 p-4 text-center">No new updates or alerts.</p>
+                ) : (
+                  notifications.map((n) => (
+                    <div key={n.notification_id} className="p-3 text-xs border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors text-slate-600">
+                      {n.message}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
           <button 
               onClick={() => navigate("/profile", { state: { username: loggedInUser } })}
               className="text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
