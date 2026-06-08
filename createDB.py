@@ -115,9 +115,9 @@ cur.execute("""
             
     CREATE TABLE notification (
         notification_id SERIAL PRIMARY KEY,
-        username VARCHAR(255) NOT NULL, -- Target user who receives the message
-        message TEXT NOT NULL,          -- Notification content
-        is_read BOOLEAN DEFAULT FALSE,   -- Read status tracking
+        username VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,       
+        is_read BOOLEAN DEFAULT FALSE,   
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 """)

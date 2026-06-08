@@ -59,8 +59,6 @@ export function Home() {
   const loggedInUser = location.state?.username || "Guest User";
 
   const handleEndAuction = async (itemId: string) => {
-    if (!window.confirm("Are you sure you want to end this auction early?")) return;
-
     try {
       const response = await fetch("http://127.0.0.1:5000/api/auction/end", {
         method: "POST",
@@ -79,6 +77,25 @@ export function Home() {
       }
     } catch (err) {
       console.error("Error closing auction:", err);
+    }
+  };
+
+  const handleMarkAsRead = async () => {
+    if (loggedInUser === "Guest User" || notifications.length === 0) return;
+
+    try {
+      const response = await fetch("http://127.0.0.1:5000/api/notifications/read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: loggedInUser }),
+      });
+
+      if (response.ok) {
+        console.log("Notifications marked as read in database.");
+        // The database is updated! The next mount will fetch 0 items.
+      }
+    } catch (err) {
+      console.error("Failed to clear notifications:", err);
     }
   };
   
@@ -212,7 +229,18 @@ export function Home() {
           {/* NOTIFICATION BELL DROP-DOWN LAYOUT */}
           <div className="relative">
             <button 
-              onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+              onClick={() => {
+                const nextState = !showNotifDropdown;
+                setShowNotifDropdown(nextState);
+                
+                if (nextState === true) {
+                  // 1. Opening the tray: trigger backend database mark-as-read API
+                  handleMarkAsRead();
+                } else {
+                  // 2. Closing the tray: now cleanly wipe the UI array so they disappear!
+                  setNotifications([]);
+                }
+              }}
               className="p-2 text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all relative cursor-pointer"
             >
               {/* Simple Bell Icon */}
@@ -225,7 +253,6 @@ export function Home() {
                 </span>
               )}
             </button>
-
             {/* DROPDOWN OVERLAY LIST */}
             {showNotifDropdown && (
               <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-100 shadow-xl rounded-2xl py-2 z-50 max-h-80 overflow-y-auto">
