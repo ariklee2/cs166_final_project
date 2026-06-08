@@ -117,14 +117,14 @@ export function Login() {
     <div className="min-h-screen bg-white flex" style={{ fontFamily: "'DM Sans', sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Sora:wght@400;600;700&display=swap" rel="stylesheet" />
 
-      {/* Left panel — dark blue branding side banner */}
+      {/* LEFT PANEL */}
       <div className="hidden lg:flex lg:w-5/12 flex-col justify-between p-14 relative overflow-hidden" style={{ background: DARK_BLUE }}>
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full opacity-10" style={{ background: "white" }} />
           <div className="absolute bottom-0 left-0 w-56 h-56 rounded-full opacity-5" style={{ background: "white", transform: "translate(-30%, 30%)" }} />
         </div>
 
-        {/* Brand Logo */}
+        {/* BRAND LOGO */}
         <div className="relative z-10 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center" style={{ color: DARK_BLUE }}>
             <StoreIcon />
@@ -132,7 +132,7 @@ export function Login() {
           <span className="text-white text-xl font-bold" style={{ fontFamily: "'Sora', sans-serif" }}>R'Market</span>
         </div>
 
-        {/* Copy text block */}
+        {/* COPY TEXT BLOCK */}
         <div className="relative z-10">
           <h1 className="text-white text-4xl font-bold leading-tight mb-4" style={{ fontFamily: "'Sora', sans-serif" }}>
             Welcome back to the<br />
@@ -148,7 +148,7 @@ export function Login() {
         </div>
       </div>
 
-      {/* Right panel — active credential login entry layout block */}
+      {/* RIGHT PANEL */}
       <div className="flex-1 flex items-center justify-center px-6 py-12 lg:px-16" style={{ background: "#fafbff" }}>
         <div className="w-full max-w-md">
 
@@ -166,7 +166,7 @@ export function Login() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Username Input */}
+            {/* USERNAME INPUT */}
             <div>
               <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wide" style={{ color: DARK_BLUE, letterSpacing: "0.07em" }}>
                 Username / Login
@@ -191,7 +191,7 @@ export function Login() {
               </div>
             </div>
 
-            {/* Password Input */}
+            {/* PASSWORD INPUT */}
             <div>
               <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wide" style={{ color: DARK_BLUE, letterSpacing: "0.07em" }}>
                 Password
@@ -223,7 +223,7 @@ export function Login() {
                 </button>
               </div>
               
-              {/* Central Auth Error Messages Output */}
+              {/* CENTRAL AUTH ERROR MESSAGES OUTPUT */}
               {(errors.username || errors.password) && (
                 <p className="mt-2 text-xs flex items-center gap-1" style={{ color: "#ef4444" }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

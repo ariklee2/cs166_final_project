@@ -120,7 +120,7 @@ export function Bid() {
                 </div>
                 {error && (
                   <p className="mt-2 text-xs text-red-500 flex items-start gap-1">
-                    <span>⚠️</span> {error}
+                    <span>!!!</span> {error}
                   </p>
                 )}
               </div>
