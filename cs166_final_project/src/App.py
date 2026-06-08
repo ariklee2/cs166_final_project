@@ -217,7 +217,7 @@ def end_auction():
             """
             cur.execute(
                 insert_notif_query, 
-                (winner_login, f"🏆 Congratulations! You won the auction for '{item_name}'! You can now proceed to checkout.")
+                (winner_login, f"Congratulations! You won the auction for '{item_name}'! You can now proceed to checkout.")
             )
         
         # Commit everything as an atomic transaction block
@@ -489,6 +489,67 @@ def update_user_profile():
         if conn: conn.rollback()
         print(f"Profile Database Mutator Modification Error: {e}")
         return jsonify({"error": "Internal update processor failure"}), 500
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+@app.route('/api/notifications', methods=['GET'])
+def get_notifications():
+    username = request.args.get('username')
+    if not username:
+        return jsonify({"error": "Missing username parameter"}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        query = """
+            SELECT notification_id, message, is_read
+            FROM notification 
+            WHERE username = %s AND is_read = FALSE
+            ORDER BY notification_id DESC;
+        """
+        cur.execute(query, (username,))
+        notifications = cur.fetchall()
+        
+        return jsonify(notifications), 200
+    except Exception as e:
+        print(f"Notification Fetch Error: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+@app.route('/api/notifications/read', methods=['POST'])
+def mark_notifications_as_read():
+    data = request.json
+    username = data.get('username')
+
+    if not username:
+        return jsonify({"error": "Missing username context"}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # 🌟 THIS IS WHERE IT FLIPS THE FLAG TO TRUE IN THE DATABASE
+        query = """
+            UPDATE notification 
+            SET is_read = TRUE 
+            WHERE username = %s AND is_read = FALSE;
+        """
+        cur.execute(query, (username,))
+        conn.commit()
+
+        return jsonify({"message": "Notifications marked as read cleanly"}), 200
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"Notification Update Error: {e}")
+        return jsonify({"error": "Internal database update failure"}), 500
     finally:
         if cur: cur.close()
         if conn: conn.close()
