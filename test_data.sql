@@ -1,12 +1,5 @@
--- Run after createDB.py or after loading the schema.
-
--- Clear existing data in dependency order.
 TRUNCATE shipment, payment, bid, auction, item, users CASCADE;
 
--- -------------------------
--- USERS
--- 500 buyers, 100 sellers, 1 admin
--- -------------------------
 INSERT INTO users (login, password, phone_num, address, role, favorite_category)
 SELECT
     'buyer' || g,
@@ -42,10 +35,6 @@ FROM generate_series(1, 100) AS g;
 INSERT INTO users (login, password, phone_num, address, role, favorite_category)
 VALUES ('admin1', 'pass', '555-999-0000', 'Admin Office, Riverside CA', 'Admin', NULL);
 
--- -------------------------
--- ITEMS
--- 1000 items spread across 100 sellers
--- -------------------------
 INSERT INTO item
 (item_id, item_name, category, starting_price, image_url, item_condition, description, seller_login, seller_role)
 SELECT
@@ -71,11 +60,6 @@ SELECT
     'Seller'
 FROM generate_series(1, 1000) AS g;
 
--- -------------------------
--- AUCTIONS
--- One auction per item because item_id is UNIQUE in auction.
--- 80% active, 20% closed.
--- -------------------------
 INSERT INTO auction
 (auction_id, item_id, seller_login, seller_role, current_highest_bid, auction_status)
 SELECT
@@ -87,11 +71,6 @@ SELECT
     CASE WHEN (g % 5) = 0 THEN 'Closed' ELSE 'Active' END
 FROM generate_series(1, 1000) AS g;
 
--- -------------------------
--- BIDS
--- 20,000 bids distributed across 1000 auctions.
--- Buyer is chosen so it never matches seller login pattern.
--- -------------------------
 INSERT INTO bid
 (bid_id, auction_id, buyer_login, buyer_role, bid_amount, bid_timestamp)
 SELECT
@@ -103,7 +82,6 @@ SELECT
     CURRENT_TIMESTAMP - (g || ' seconds')::interval
 FROM generate_series(1, 20000) AS g;
 
--- Update each auction to match the largest bid placed on it.
 UPDATE auction a
 SET current_highest_bid = b.max_bid
 FROM (
@@ -113,7 +91,6 @@ FROM (
 ) AS b
 WHERE a.auction_id = b.auction_id;
 
--- Assign winners for closed auctions using the highest bid.
 UPDATE auction a
 SET winner_login = b.buyer_login,
     winner_role = 'Buyer'
@@ -129,10 +106,6 @@ FROM (
 WHERE a.auction_id = b.auction_id
   AND a.auction_status = 'Closed';
 
--- -------------------------
--- PAYMENTS
--- Payments for closed auctions only.
--- -------------------------
 INSERT INTO payment
 (payment_id, auction_id, buyer_login, buyer_role, amount, payment_status)
 SELECT
@@ -150,10 +123,6 @@ FROM auction
 WHERE auction_status = 'Closed'
   AND winner_login IS NOT NULL;
 
--- -------------------------
--- SHIPMENTS
--- Shipments for completed payments only.
--- -------------------------
 INSERT INTO shipment
 (shipment_id, auction_id, address, shipment_status, tracking_number)
 SELECT
@@ -169,10 +138,8 @@ SELECT
 FROM payment p
 WHERE p.payment_status = 'Completed';
 
--- Update PostgreSQL statistics after loading data.
 ANALYZE;
 
--- Quick row-count check.
 SELECT 'users' AS table_name, COUNT(*) AS rows FROM users
 UNION ALL SELECT 'item', COUNT(*) FROM item
 UNION ALL SELECT 'auction', COUNT(*) FROM auction
