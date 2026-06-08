@@ -32,10 +32,6 @@ export function UserProfile() {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [password, setPassword] = useState<string>(""); // Kept separate for security handling
-  
-  // Payment option tracking state variables
-//   const [paymentAmount, setPaymentAmount] = useState<string>("");
-//   const [paymentStatus, setPaymentStatus] = useState<string>("Pending");
 
   const [loading, setLoading] = useState<boolean>(true);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -135,7 +131,7 @@ export function UserProfile() {
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left panel layout summary card */}
+          {/* LEFT PANEL */}
           <div className="bg-white border border-slate-100 rounded-2xl p-6 h-fit text-center">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold mx-auto mb-3 text-white" style={{ background: DARK_BLUE }}>
               {profile?.login.substring(0, 2).toUpperCase()}
@@ -144,7 +140,7 @@ export function UserProfile() {
             <p className="text-slate-400 text-xs mt-0.5 capitalize">Verified System Account • {profile?.role}</p>
           </div>
 
-          {/* Right panel operational form cards layout stack */}
+          {/* RIGHT PANEL */}
           <div className="lg:col-span-2 space-y-6">
             {message && (
               <div className={`p-4 rounded-xl text-xs font-medium border ${message.type === "success" ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-red-50 text-red-600 border-red-100"}`}>
@@ -152,7 +148,7 @@ export function UserProfile() {
               </div>
             )}
 
-            {/* Editable Profile Information Block */}
+            {/* EDITABLE PROFILE INFO */}
             <div className="bg-white border border-slate-100 rounded-2xl p-6 md:p-8">
               <h3 className="text-base font-bold mb-4" style={{ color: DARK_BLUE, fontFamily: "'Sora', sans-serif" }}>Account Parameters</h3>
               

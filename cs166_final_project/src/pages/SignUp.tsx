@@ -145,9 +145,8 @@ export function SignUp() {
     <div className="min-h-screen bg-white flex" style={{ fontFamily: "'DM Sans', sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Sora:wght@400;600;700&display=swap" rel="stylesheet" />
 
-      {/* Left panel — dark blue branding */}
+      {/* LEFT PANEL */}
       <div className="hidden lg:flex lg:w-5/12 flex-col justify-between p-14 relative overflow-hidden" style={{ background: DARK_BLUE }}>
-        {/* Subtle geometric decoration */}
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full opacity-10" style={{ background: "white" }} />
           <div className="absolute bottom-0 left-0 w-56 h-56 rounded-full opacity-5" style={{ background: "white", transform: "translate(-30%, 30%)" }} />
@@ -155,7 +154,7 @@ export function SignUp() {
           <div className="absolute top-1/2 right-16 w-px h-32 opacity-5" style={{ background: "white" }} />
         </div>
 
-        {/* Logo */}
+        {/* LOGO */}
         <div className="relative z-10 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center" style={{ color: DARK_BLUE }}>
             <StoreIcon />
@@ -163,7 +162,7 @@ export function SignUp() {
           <span className="text-white text-xl font-bold" style={{ fontFamily: "'Sora', sans-serif" }}>R'Market</span>
         </div>
 
-        {/* Hero copy */}
+        {/* HERO COPY */}
         <div className="relative z-10">
           <h1 className="text-white text-4xl font-bold leading-tight mb-4" style={{ fontFamily: "'Sora', sans-serif" }}>
             Buy. Sell.<br />
@@ -173,7 +172,7 @@ export function SignUp() {
             R'Market is an open marketplace where anyone can list, discover, and purchase items from sellers around the world.
           </p>
 
-          {/* Feature bullets */}
+          {/* FEATURE BULLETS */}
           <div className="space-y-4">
             {[
               { title: "Millions of listings", desc: "From electronics to collectibles" },
@@ -195,17 +194,17 @@ export function SignUp() {
           </div>
         </div>
 
-        {/* Bottom tagline */}
+        {/* BOTTOM TAGLINE */}
         <div className="relative z-10">
           <p className="text-blue-400 text-xs" style={{ opacity: 0.5 }}>Trusted by 2M+ buyers and sellers worldwide.</p>
         </div>
       </div>
 
-      {/* Right panel — form */}
+      {/* RIGHT PANEL */}
       <div className="flex-1 flex items-center justify-center px-6 py-12 lg:px-16" style={{ background: "#fafbff" }}>
         <div className="w-full max-w-md">
 
-          {/* Mobile logo */}
+          {/* MOBILE LOGO */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: DARK_BLUE, color: "white" }}>
               <StoreIcon />

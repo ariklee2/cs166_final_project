@@ -28,7 +28,11 @@ interface Listing {
   item_condition: string;
   description: string;
   seller_login: string; 
-  ends_in?: string; // Optional 
+  auction_status: "Active" | "Closed";
+  winner_login: string | null;
+  tracking_number?: string | null;
+  shipment_status?: string | null;
+  shipping_address?: string | null;
 }
 
 // Icons
@@ -46,6 +50,30 @@ export function Home() {
   const location = useLocation();
 
   const loggedInUser = location.state?.username || "Guest User";
+
+  const handleEndAuction = async (itemId: string) => {
+    if (!window.confirm("Are you sure you want to end this auction early?")) return;
+
+    try {
+      const response = await fetch("http://127.0.0.1:5000/api/auction/end", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          item_id: itemId,
+          seller_login: loggedInUser
+        }),
+      });
+
+      if (response.ok) {
+        const res = await fetch("http://127.0.0.1:5000/api/items");
+        if (res.ok) setListings(await res.json());
+      } else {
+        alert("Failed to close auction.");
+      }
+    } catch (err) {
+      console.error("Error closing auction:", err);
+    }
+  };
   
   const [activeTab, setActiveTab] = useState<"buy" | "sell">("buy");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -62,22 +90,22 @@ export function Home() {
   const DARK_BLUE = "#0f2d5c";
   const ACCENT_BLUE = "#2563eb";
 
-// --- EFFECT HOOK: FETCH LISTINGS FROM POSTGRESQL ---
-useEffect(() => {
-  const loadMarketplaceData = async () => {
-    try {
-      const response = await fetch("http://127.0.0.1:5000/api/items");
-      if (response.ok) {
-        const data = await response.json();
-        setListings(data);
+  // Fetch listings from database
+  useEffect(() => {
+    const loadMarketplaceData = async () => {
+      try {
+        const response = await fetch("http://127.0.0.1:5000/api/items");
+        if (response.ok) {
+          const data = await response.json();
+          setListings(data);
+        }
+      } catch (err) {
+        console.error("Error reading database listings:", err);
       }
-    } catch (err) {
-      console.error("Error reading database listings:", err);
-    }
-  };
+    };
 
-  loadMarketplaceData();
-}, [activeTab]); // Triggers reload when alternating between tabs
+    loadMarketplaceData();
+  }, [activeTab]);
 
   const handleFormChange = (field: keyof AuctionFormData) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -94,7 +122,6 @@ useEffect(() => {
     return e;
   };
 
-  // --- SUBMIT COMPONENT: LOG AUCTION OBJECT ---
   const handleAuctionSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const errs = validateForm();
@@ -125,7 +152,7 @@ useEffect(() => {
 
       setLoading(false);
       setForm({ item_name: "", category: "", starting_price: "", image_url: "", item_condition: "Excellent", description: "" });
-      setActiveTab("buy"); // Switch to discover tab to see live update
+      setActiveTab("buy");
     } catch (error) {
       setErrors({ item_name: "Could not reach database server." });
       setLoading(false);
@@ -141,7 +168,7 @@ useEffect(() => {
     <div className="min-h-screen flex flex-col" style={{ fontFamily: "'DM Sans', sans-serif", background: "#fafbff" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Sora:wght@400;600;700&display=swap" rel="stylesheet" />
 
-      {/* Navbar Container */}
+      {/* NAVBAR CONTAINER */}
       <header className="sticky top-0 z-50 bg-white border-b border-slate-100 px-6 py-4 lg:px-16 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab("buy")}>
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: DARK_BLUE, color: "white" }}>
@@ -190,49 +217,137 @@ useEffect(() => {
                 {filteredListings.map((item) => (
                   <div key={item.id} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs flex flex-col">
                     <div className="relative h-48 bg-slate-100">
-                      <img src={item.image_url} alt={item.item_name} className="w-full h-full object-cover" onError={(e)=>{(e.target as HTMLImageElement).src='https://coolbackgrounds.io/white-background/';}} />
-                      <span className="absolute top-3 left-3 bg-white/90 text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-md text-slate-700">{item.category}</span>
-                      <div className="absolute bottom-3 right-3 bg-slate-900/80 text-white flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md"><ClockIcon/> Active</div>
+                      <img 
+                        src={item.image_url} 
+                        alt={item.item_name} 
+                        className="w-full h-full object-cover" 
+                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://coolbackgrounds.io/white-background/'; }} 
+                      />
+                      <span className="absolute top-3 left-3 bg-white/90 text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-md text-slate-700">
+                        {item.category}
+                      </span>
+                      
+                      <div 
+                        className="absolute bottom-3 right-3 flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md text-white transition-colors"
+                        style={{ background: item.auction_status === "Closed" ? "#ef4444" : "rgba(15,45,92,0.8)" }}
+                      >
+                         <ClockIcon /> {item.auction_status === "Closed" ? "Closed" : "Active"}
+                      </div>
                     </div>
 
                     <div className="p-5 flex-1 flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center justify-between gap-2 mb-2">
-                            <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(37,99,235,0.08)", color: ACCENT_BLUE }}>
-                              Condition: {item.item_condition}
-                            </span>
-                            
-                            {/* Displaying the seller username tag */}
-                            <span className="text-[11px] font-medium text-slate-500">
-                              Seller: <span className="font-semibold text-slate-700">@{item.seller_login}</span>
-                            </span>
-                          </div>
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(37,99,235,0.08)", color: ACCENT_BLUE }}>
+                            Condition: {item.item_condition}
+                          </span>
                           
-                          <h3 className="font-bold text-base mt-1 mb-1 line-clamp-1" style={{ color: DARK_BLUE }}>{item.item_name}</h3>
-                          <p className="text-slate-400 text-xs line-clamp-2 mb-4">{item.description}</p>
+                          <span className="text-[11px] font-medium text-slate-500">
+                            Seller: <span className="font-semibold text-slate-700">@{item.seller_login}</span>
+                          </span>
+                        </div>
+                        
+                        <h3 className="font-bold text-base mt-1 mb-1 line-clamp-1" style={{ color: DARK_BLUE }}>
+                          {item.item_name}
+                        </h3>
+                        <p className="text-slate-400 text-xs line-clamp-2 mb-4">
+                          {item.description}
+                        </p>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
+                        <div>
+                          <p className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">
+                            {item.auction_status === "Closed" ? "Winning Bid" : "Current Bid"}
+                          </p>
+                          <p className="text-lg font-bold" style={{ color: DARK_BLUE }}>
+                            ${Number(item.current_bid).toFixed(2)}
+                          </p>
                         </div>
 
-                        <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
-                          <div>
-                            <p className="text-slate-400 text-[10px] uppercase tracking-wider font-semibold">Current Bid</p>
-                            <p className="text-lg font-bold" style={{ color: DARK_BLUE }}>${Number(item.current_bid).toFixed(2)}</p>
-                          </div>
-                          <button onClick={() => navigate("/bid", {
-                            state: {
-                              item_id: item.id,
-                              item_name: item.item_name,
-                              current_bid: item.current_bid,
-                              image_url: item.image_url,
-                              username: loggedInUser
-                            }
-                          })}
-                          className="px-4 py-2 text-xs font-semibold text-white rounded-xl shadow-xs" 
-                          style={{ background: DARK_BLUE }}>
-                            Place Bid
-                          </button>
-                        </div>
+                        {/* ACTIONS CONDITIONAL MATRIX */}
+                        {item.auction_status === "Closed" ? (
+                          // Case 1: Auction is closed. 
+                          item.tracking_number ? (
+                            // Sub-Case: Order checked out. Visible to winning buyer and seller.
+                            (item.winner_login === loggedInUser || item.seller_login === loggedInUser) ? (
+                              <button 
+                                onClick={() => navigate("/shipping", {
+                                  state: {
+                                    item_name: item.item_name,
+                                    current_bid: item.current_bid,
+                                    tracking_number: item.tracking_number,
+                                    shipment_status: item.shipment_status,
+                                    shipping_address: item.shipping_address,
+                                    winner_login: item.winner_login,
+                                    seller_login: item.seller_login,
+                                    username: loggedInUser
+                                  }
+                                })}
+                                className="px-4 py-2 text-xs font-semibold text-white rounded-xl shadow-xs transition-colors cursor-pointer"
+                                style={{ background: ACCENT_BLUE }}
+                              >
+                                Track Order
+                              </button>
+                            ) : (
+                              <button disabled className="px-4 py-2 text-xs font-semibold text-slate-400 bg-slate-100 rounded-xl cursor-not-allowed">
+                                Ended & Shipped
+                              </button>
+                            )
+                          ) : item.winner_login === loggedInUser ? (
+                            // Sub-Case: Order not placed yet. Winner sees checkout button.
+                            <button 
+                              onClick={() => navigate("/checkout", {
+                                  state: {
+                                    item_id: item.id,
+                                    item_name: item.item_name,
+                                    final_price: item.current_bid,
+                                    username: loggedInUser
+                                  }
+                              })}
+                              className="px-4 py-2 text-xs font-semibold text-white rounded-xl shadow-xs bg-green-600 hover:bg-green-700 transition-colors cursor-pointer"
+                            >
+                              Checkout 🎉
+                            </button>
+                          ) : (
+                            // Sub-Case: Order not placed yet. Others see winner tag.
+                            <button 
+                              disabled 
+                              className="px-4 py-2 text-xs font-semibold text-slate-400 bg-slate-100 rounded-xl cursor-not-allowed"
+                            >
+                              {item.winner_login ? `Won by @${item.winner_login}` : "No Bids"}
+                            </button>
+                          )
+                        ) : (
+                          // Case 2: Auction is active. 
+                          item.seller_login === loggedInUser ? (
+                            <button 
+                              onClick={() => handleEndAuction(item.id)}
+                              className="px-4 py-2 text-xs font-semibold text-white rounded-xl shadow-xs bg-red-500 hover:bg-red-600 transition-colors cursor-pointer"
+                            >
+                              End Auction
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={() => navigate("/bid", {
+                                state: {
+                                  item_id: item.id,
+                                  item_name: item.item_name,
+                                  current_bid: item.current_bid,
+                                  image_url: item.image_url,
+                                  username: loggedInUser
+                                }
+                              })}
+                              className="px-4 py-2 text-xs font-semibold text-white rounded-xl shadow-xs cursor-pointer" 
+                              style={{ background: DARK_BLUE }}
+                            >
+                              Place Bid
+                            </button>
+                          )
+                        )}
                       </div>
                     </div>
+                  </div>
                 ))}
               </div>
             )}

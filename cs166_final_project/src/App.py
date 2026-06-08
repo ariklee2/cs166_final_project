@@ -157,6 +157,68 @@ def create_auction():
         if cur: cur.close()
         if conn: conn.close()
 
+@app.route('/api/auction/end', methods=['POST'])
+def end_auction():
+    data = request.json
+    item_id = data.get('item_id')
+    seller_login = data.get('seller_login')
+
+    if not item_id or not seller_login:
+        return jsonify({"error": "Missing item target context or seller authorization"}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # 1. Verify that this item actually belongs to the requesting seller
+        cur.execute("SELECT seller_login FROM item WHERE item_id = %s;", (item_id,))
+        item_record = cur.fetchone()
+
+        if not item_record:
+            return jsonify({"error": "Item not found."}), 404
+        if item_record['seller_login'] != seller_login:
+            return jsonify({"error": "Unauthorized. Only the seller can end this auction."}), 403
+
+        # 2. Find the highest bidder from the bid ledger table for this auction
+        cur.execute("""
+            SELECT b.buyer_login 
+            FROM bid b
+            JOIN auction a ON b.auction_id = a.auction_id
+            WHERE a.item_id = %s
+            ORDER BY b.bid_amount DESC, b.bid_timestamp ASC
+            LIMIT 1;
+        """, (item_id,))
+        highest_bidder_record = cur.fetchone()
+        
+        winner_login = highest_bidder_record['buyer_login'] if highest_bidder_record else None
+        winner_role = 'Buyer' if winner_login else None
+
+        # 3. Complete the auction transaction block: set status to 'Closed' and save the winner
+        update_auction_query = """
+            UPDATE auction 
+            SET auction_status = 'Closed',
+                winner_login = %s,
+                winner_role = %s
+            WHERE item_id = %s;
+        """
+        cur.execute(update_auction_query, (winner_login, winner_role, item_id))
+        
+        conn.commit()
+        return jsonify({
+            "message": "Auction successfully closed!", 
+            "winner": winner_login if winner_login else "No bids placed"
+        }), 200
+
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"Closure Error: {e}")
+        return jsonify({"error": "Internal ledger processing failure"}), 500
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
 @app.route('/api/items', methods=['GET'])
 def get_items():
     conn = None
@@ -165,7 +227,7 @@ def get_items():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        # Pull layout strings cleanly to map with frontend keys
+        # Pull layout strings cleanly, including shipment tracking information
         cur.execute("""
             SELECT 
                 i.item_id AS id,
@@ -176,10 +238,14 @@ def get_items():
                 i.image_url,
                 i.seller_login,
                 COALESCE(a.current_highest_bid, i.starting_price) AS current_bid,
-                a.auction_status
+                a.auction_status,
+                a.winner_login,
+                s.tracking_number,
+                s.shipment_status,
+                s.address AS shipping_address
             FROM item i 
             LEFT JOIN auction a ON i.item_id = a.item_id
-            WHERE a.auction_status = 'Active' OR a.auction_status IS NULL;
+            LEFT JOIN shipment s ON a.auction_id = s.auction_id;
         """)
         items = cur.fetchall()
         return jsonify(items), 200
@@ -248,6 +314,80 @@ def place_bid():
         if conn: conn.rollback()
         print(f"Bidding Processing Error Exception: {e}")
         return jsonify({"error": "Internal ledger server processing failure"}), 500
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+@app.route('/api/checkout/place-order', methods=['POST'])
+def place_order():
+    data = request.json
+    item_id = data.get('item_id')
+    buyer_login = data.get('buyer_login')
+    address = data.get('address')
+
+    if not all([item_id, buyer_login, address]):
+        return jsonify({"error": "Missing item, buyer, or shipping address context"}), 400
+
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # 1. Fetch the closed auction details to grab auction_id and final bid amount
+        cur.execute("""
+            SELECT auction_id, current_highest_bid, winner_login, auction_status 
+            FROM auction 
+            WHERE item_id = %s;
+        """, (item_id,))
+        auction_record = cur.fetchone()
+
+        if not auction_record:
+            return jsonify({"error": "Matching auction ledger not found"}), 404
+        if auction_record['auction_status'] != 'Closed':
+            return jsonify({"error": "This auction is still actively open"}), 400
+        if auction_record['winner_login'] != buyer_login:
+            return jsonify({"error": "Unauthorized. You did not win this auction"}), 403
+
+        auction_id = auction_record['auction_id']
+        final_amount = auction_record['current_highest_bid']
+
+        # Generate unique IDs for the new payment and shipment rows
+        payment_id = random.randint(1000, 999999)
+        shipment_id = random.randint(1000, 999999)
+        tracking_number = f"TRK-{random.randint(100000, 999999)}"
+
+        # 2. Insert into PAYMENT table
+        insert_payment_query = """
+            INSERT INTO payment (payment_id, auction_id, buyer_login, buyer_role, amount, payment_status)
+            VALUES (%s, %s, %s, 'Buyer', %s, 'Completed');
+        """
+        cur.execute(insert_payment_query, (payment_id, auction_id, buyer_login, final_amount))
+
+        # 3. Insert into SHIPMENT table
+        insert_shipment_query = """
+            INSERT INTO shipment (shipment_id, auction_id, address, shipment_status, tracking_number)
+            VALUES (%s, %s, %s, 'Pending', %s);
+        """
+        cur.execute(insert_shipment_query, (shipment_id, auction_id, address, tracking_number))
+
+        # Commit both updates as an interconnected transactional unit
+        conn.commit()
+        return jsonify({
+            "message": "Order placed successfully!",
+            "payment_id": payment_id,
+            "shipment_id": shipment_id,
+            "tracking_number": tracking_number
+        }), 201
+
+    except psycopg2.IntegrityError as e:
+        if conn: conn.rollback()
+        print(f"Checkout Integrity Constraint Error: {e}")
+        return jsonify({"error": "This auction order has already been processed and checked out."}), 400
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"Checkout Internal Error: {e}")
+        return jsonify({"error": "Internal ledger processing failure"}), 500
     finally:
         if cur: cur.close()
         if conn: conn.close()
