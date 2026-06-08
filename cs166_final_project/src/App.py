@@ -204,7 +204,23 @@ def end_auction():
             WHERE item_id = %s;
         """
         cur.execute(update_auction_query, (winner_login, winner_role, item_id))
+
+        if winner_login:
+            # Look up the item name to make the notification text clear
+            cur.execute("SELECT item_name FROM item WHERE item_id = %s;", (item_id,))
+            item_info = cur.fetchone()
+            item_name = item_info['item_name'] if item_info else "an item"
+            
+            insert_notif_query = """
+                INSERT INTO notification (username, message) 
+                VALUES (%s, %s);
+            """
+            cur.execute(
+                insert_notif_query, 
+                (winner_login, f"🏆 Congratulations! You won the auction for '{item_name}'! You can now proceed to checkout.")
+            )
         
+        # Commit everything as an atomic transaction block
         conn.commit()
         return jsonify({
             "message": "Auction successfully closed!", 
@@ -262,7 +278,7 @@ def place_bid():
     item_id = data.get('item_id')
     buyer_login = data.get('buyer_login')
     bid_amount = data.get('bid_amount')
-    buyer_role = 'Buyer' # Hardcoded to bypass schema default CHECK layout constraint
+    buyer_role = 'Buyer' 
 
     if not all([item_id, buyer_login, bid_amount]):
         return jsonify({"error": "Missing item target context or pricing parameters"}), 400
@@ -280,12 +296,12 @@ def place_bid():
         if not auction_record:
             return jsonify({"error": "No matching active auction found for this item."}), 404
 
-        # 2. Server-side validation: Double check that the bid isn't beaten by another user in the interim
+        # 2. Server-side validation
         if float(bid_amount) <= float(auction_record['current_highest_bid']):
             return jsonify({"error": f"Bid too low. Someone else already bid ${auction_record['current_highest_bid']}"}), 400
 
         auction_id = auction_record['auction_id']
-        bid_id = random.randint(1000, 999999) # Generating unique int ID since schema doesn't use SERIAL
+        bid_id = random.randint(1000, 999999) 
 
         # 3. Step One: Insert record into the BID table
         insert_bid_query = """
@@ -301,6 +317,23 @@ def place_bid():
             WHERE auction_id = %s;
         """
         cur.execute(update_auction_query, (bid_amount, auction_id))
+
+        cur.execute("SELECT seller_login, item_name FROM item WHERE item_id = %s;", (item_id,))
+        item_info = cur.fetchone()
+
+        if item_info:
+            seller = item_info['seller_login']
+            item_name = item_info['item_name']
+            
+            # Make sure this code matches the helper function you created earlier
+            insert_notif_query = """
+                INSERT INTO notification (username, message) 
+                VALUES (%s, %s);
+            """
+            cur.execute(
+                insert_notif_query, 
+                (seller, f"🎉 Someone placed a new bid of ${float(bid_amount):.2f} on your item: '{item_name}'!")
+            )
 
         # Commit everything as an atomic transaction block
         conn.commit()
