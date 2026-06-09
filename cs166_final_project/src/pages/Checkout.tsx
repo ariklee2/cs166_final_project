@@ -194,7 +194,7 @@ export function Checkout() {
             <div className="text-center py-4 space-y-4">
                 <div className="w-16 h-16 bg-green-50 text-green-500 rounded-full flex items-center justify-center text-3xl mx-auto">🎉</div>
                 <h2 className="text-2xl font-bold" style={{ color: DARK_BLUE }}>Order Confirmed!</h2>
-                <p className="text-slate-400 text-sm max-w-sm mx-auto">Your payment has cleared. Your tracking parameters have been locked into the relational tables.</p>
+                <p className="text-slate-400 text-sm max-w-sm mx-auto">Your payment went through!.</p>
               
                 <div className="bg-slate-50 rounded-xl p-4 text-left text-xs font-mono space-y-1.5 text-slate-600 border border-slate-100">
                     <div>Payment ID:  {successData.payment_id}</div>
