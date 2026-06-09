@@ -168,7 +168,6 @@ export function UserProfile() {
                         value={password} 
                         onChange={(e) => setPassword(e.target.value)} 
                         className="w-full h-10 pl-3 pr-10 text-sm border border-slate-200 rounded-xl outline-none" 
-                        placeholder="Enter clean unhashed password text..." 
                         />
                         <button
                         type="button"
