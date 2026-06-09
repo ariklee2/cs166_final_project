@@ -176,7 +176,7 @@ export function Login() {
             {/* USERNAME INPUT */}
             <div>
               <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wide" style={{ color: DARK_BLUE, letterSpacing: "0.07em" }}>
-                Username / Login
+                Username
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-3.5 pointer-events-none" style={{ color: focused === "username" ? ACCENT_BLUE : "#94a3b8", transition: "color 0.18s" }}>
