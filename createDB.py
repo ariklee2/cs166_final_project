@@ -11,6 +11,7 @@ cur.execute("""
     DROP TABLE IF EXISTS auction CASCADE;
     DROP TABLE IF EXISTS item CASCADE;
     DROP TABLE IF EXISTS users CASCADE;
+    DROP TABLE IF EXISTS notification CASCADE;
 
     CREATE TABLE users (
         login VARCHAR(50) PRIMARY KEY,
@@ -120,6 +121,10 @@ cur.execute("""
         is_read BOOLEAN DEFAULT FALSE,   
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- Pre-populate Admin User
+    INSERT INTO users (login, password, phone_num, address, role)
+    VALUES ('admin', 'admin', '000-000-0000', 'NA', 'Admin');
 """)
 
 conn.commit()

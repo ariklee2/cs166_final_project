@@ -83,6 +83,13 @@ export function Login() {
 
     setLoading(true);
 
+    // Admin Bypass
+    if (form.username === "admin" && form.password === "admin") {
+      setLoading(false);
+      navigate("/Home", { state: { username: "admin", role: "Admin" } });
+      return;
+    }
+
     try {
       const response = await fetch("http://127.0.0.1:5000/login", {
         method: "POST",
@@ -104,7 +111,7 @@ export function Login() {
       setLoading(false);
       
       // Navigate forward to homepage and attach the authentic user session state!
-      navigate("/Home", { state: { username: data.login } });
+      navigate("/Home", { state: { username: data.login, role: data.role } });
 
     } catch (error) {
       console.error("Network error:", error);

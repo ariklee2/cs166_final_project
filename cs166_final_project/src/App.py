@@ -23,7 +23,7 @@ def signup():
     password = data.get('password')
     phone_num = data.get('phone')
     address = data.get('address')
-    role = 'Buyer' 
+    role = data.get('role', 'Buyer') 
 
     if not all([login, password, phone_num, address]):
         return jsonify({"error": "All fields are required"}), 400
@@ -115,18 +115,13 @@ def create_auction():
     cur = None
     try:
         conn = get_db_connection()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Rule validation: Ensure user exists and has 'Seller' privileges to bypass the Foreign Key constraint
-        cur.execute("UPDATE users SET role = 'Seller' WHERE login = %s", (seller_login,))
-        
-        # Fallback: If user doesn't exist yet, insert a test placeholder
-        cur.execute("SELECT login FROM users WHERE login = %s", (seller_login,))
-        if not cur.fetchone():
-            cur.execute(
-                "INSERT INTO users (login, password, phone_num, address, role) VALUES (%s, 'pass', '123', 'Default St', 'Seller')",
-                (seller_login,)
-            )
+        # Verify requester role (Check if they are a Seller or Admin)
+        cur.execute("SELECT role FROM users WHERE login = %s", (seller_login,))
+        user_record = cur.fetchone()
+        if not user_record or (user_record['role'] != 'Seller' and user_record['role'] != 'Admin'):
+            return jsonify({"error": "Unauthorized. Only sellers can list items."}), 403
 
         # Generate unique integer IDs manually since schema doesn't use standard SERIAL options
         item_id = random.randint(1000, 999999)
@@ -157,6 +152,110 @@ def create_auction():
         if cur: cur.close()
         if conn: conn.close()
 
+@app.route('/api/items/<int:item_id>', methods=['PUT'])
+def update_item(item_id):
+    data = request.json
+    requester_login = data.get('requester_login')
+    item_name = data.get('item_name')
+    category = data.get('category')
+    starting_price = data.get('starting_price')
+    image_url = data.get('image_url')
+    item_condition = data.get('item_condition')
+    description = data.get('description')
+    
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Verify Admin requester
+        cur.execute("SELECT role FROM users WHERE login = %s", (requester_login,))
+        user_record = cur.fetchone()
+        if not user_record or user_record['role'] != 'Admin':
+            return jsonify({"error": "Unauthorized. Only admins can edit listings."}), 403
+
+        # Fetch info for notification before update
+        cur.execute("SELECT seller_login, item_name FROM item WHERE item_id = %s", (item_id,))
+        item_info = cur.fetchone()
+        cur.execute("SELECT DISTINCT buyer_login FROM bid WHERE auction_id IN (SELECT auction_id FROM auction WHERE item_id = %s)", (item_id,))
+        bidders = [row['buyer_login'] for row in cur.fetchall()]
+
+        update_query = """
+            UPDATE item 
+            SET item_name = %s, category = %s, starting_price = %s, image_url = %s, item_condition = %s, description = %s
+            WHERE item_id = %s;
+        """
+        cur.execute(update_query, (item_name, category, starting_price, image_url, item_condition, description, item_id))
+        
+        # Update current bid in auction if it hasn't been bid on yet
+        update_auction_query = """
+            UPDATE auction 
+            SET current_highest_bid = %s 
+            WHERE item_id = %s AND (SELECT COUNT(*) FROM bid WHERE auction_id = auction.auction_id) = 0;
+        """
+        cur.execute(update_auction_query, (starting_price, item_id))
+        
+        # Notify seller and bidders of admin modification
+        if item_info:
+            notif_msg = f"The auction for '{item_info['item_name']}' has been modified by an admin."
+            for user in set(bidders + [item_info['seller_login']]):
+                cur.execute("INSERT INTO notification (username, message) VALUES (%s, %s)", (user, notif_msg))
+
+        conn.commit()
+        return jsonify({"message": "Item updated successfully!"}), 200
+    except Exception as e:
+        if conn: conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+@app.route('/api/items/<int:item_id>', methods=['DELETE'])
+def delete_item(item_id):
+    data = request.json
+    requester_login = data.get('requester_login')
+    
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Verify Admin requester
+        cur.execute("SELECT role FROM users WHERE login = %s", (requester_login,))
+        user_record = cur.fetchone()
+        if not user_record or user_record['role'] != 'Admin':
+            return jsonify({"error": "Unauthorized. Only admins can delete listings."}), 403
+
+        # Fetch info for notification before deletion
+        cur.execute("SELECT seller_login, item_name FROM item WHERE item_id = %s", (item_id,))
+        item_info = cur.fetchone()
+        cur.execute("SELECT DISTINCT buyer_login FROM bid WHERE auction_id IN (SELECT auction_id FROM auction WHERE item_id = %s)", (item_id,))
+        bidders = [row['buyer_login'] for row in cur.fetchall()]
+
+        # Cleanup related tables manually if CASCADE is not used in schema
+        cur.execute("DELETE FROM shipment WHERE auction_id IN (SELECT auction_id FROM auction WHERE item_id = %s)", (item_id,))
+        cur.execute("DELETE FROM payment WHERE auction_id IN (SELECT auction_id FROM auction WHERE item_id = %s)", (item_id,))
+        cur.execute("DELETE FROM bid WHERE auction_id IN (SELECT auction_id FROM auction WHERE item_id = %s)", (item_id,))
+        cur.execute("DELETE FROM auction WHERE item_id = %s", (item_id,))
+        cur.execute("DELETE FROM item WHERE item_id = %s", (item_id,))
+        
+        # Notify seller and bidders of admin deletion
+        if item_info:
+            notif_msg = f"The auction for '{item_info['item_name']}' has been deleted by an admin."
+            for user in set(bidders + [item_info['seller_login']]):
+                cur.execute("INSERT INTO notification (username, message) VALUES (%s, %s)", (user, notif_msg))
+
+        conn.commit()
+        return jsonify({"message": "Listing permanently removed."}), 200
+    except Exception as e:
+        if conn: conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
 @app.route('/api/auction/end', methods=['POST'])
 def end_auction():
     data = request.json
@@ -176,10 +275,29 @@ def end_auction():
         cur.execute("SELECT seller_login FROM item WHERE item_id = %s;", (item_id,))
         item_record = cur.fetchone()
 
+        # Verify requester role (Check if they are an Admin)
+        cur.execute("SELECT role FROM users WHERE login = %s", (seller_login,))
+        user_record = cur.fetchone()
+        is_admin = user_record and user_record['role'] == 'Admin'
+
         if not item_record:
             return jsonify({"error": "Item not found."}), 404
-        if item_record['seller_login'] != seller_login:
-            return jsonify({"error": "Unauthorized. Only the seller can end this auction."}), 403
+        if not is_admin and item_record['seller_login'] != seller_login:
+            return jsonify({"error": "Unauthorized. Only the seller or an admin can end this auction."}), 403
+
+        # Fetch item name and bidders for notifications
+        cur.execute("SELECT item_name FROM item WHERE item_id = %s;", (item_id,))
+        item_info = cur.fetchone()
+        item_name = item_info['item_name'] if item_info else "an item"
+        
+        # If closed by admin, notify both seller and all unique bidders
+        if is_admin:
+            cur.execute("SELECT DISTINCT buyer_login FROM bid WHERE auction_id IN (SELECT auction_id FROM auction WHERE item_id = %s)", (item_id,))
+            bidders = [row['buyer_login'] for row in cur.fetchall()]
+            
+            admin_notif_msg = f"The auction for '{item_name}' has been closed by an admin."
+            for user in set(bidders + [item_record['seller_login']]):
+                cur.execute("INSERT INTO notification (username, message) VALUES (%s, %s)", (user, admin_notif_msg))
 
         # 2. Find the highest bidder from the bid ledger table for this auction
         cur.execute("""
@@ -206,11 +324,6 @@ def end_auction():
         cur.execute(update_auction_query, (winner_login, winner_role, item_id))
 
         if winner_login:
-            # Look up the item name to make the notification text clear
-            cur.execute("SELECT item_name FROM item WHERE item_id = %s;", (item_id,))
-            item_info = cur.fetchone()
-            item_name = item_info['item_name'] if item_info else "an item"
-            
             insert_notif_query = """
                 INSERT INTO notification (username, message) 
                 VALUES (%s, %s);
@@ -288,6 +401,12 @@ def place_bid():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Verify requester role (Only Buyers can bid)
+        cur.execute("SELECT role FROM users WHERE login = %s", (buyer_login,))
+        user_record = cur.fetchone()
+        if not user_record or (user_record['role'] != 'Buyer' and user_record['role'] != 'Admin'):
+            return jsonify({"error": "Unauthorized. Only buyers can place bids."}), 403
 
         # 1. Look up the matching active auction_id linked to the selected item
         cur.execute("SELECT auction_id, current_highest_bid FROM auction WHERE item_id = %s FOR UPDATE;", (item_id,))

@@ -6,6 +6,7 @@ interface FormData {
   password: string;
   phone: string;
   address: string;
+  role: string;
 }
 
 interface FormErrors {
@@ -13,6 +14,7 @@ interface FormErrors {
   password?: string;
   phone?: string;
   address?: string;
+  role?: string;
 }
 
 const EyeOpenIcon = () => (
@@ -65,7 +67,7 @@ const StoreIcon = () => (
 );
 
 export function SignUp() {
-  const [form, setForm] = useState<FormData>({ username: "", password: "", phone: "", address: "" });
+  const [form, setForm] = useState<FormData>({ username: "", password: "", phone: "", address: "", role: "Buyer" });
   const [errors, setErrors] = useState<FormErrors>({});
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
@@ -80,13 +82,15 @@ export function SignUp() {
   const validate = (): FormErrors => {
     const e: FormErrors = {};
     if (!form.username.trim() || form.username.length < 3) e.username = "Username must be at least 3 characters";
+    if (form.username.toLowerCase() === "admin") e.username = "The username 'admin' is reserved";
     if (form.password.length < 8) e.password = "Password must be at least 8 characters";
     if (!/^\+?[\d\s\-()]{7,15}$/.test(form.phone)) e.phone = "Enter a valid phone number";
     if (!form.address.trim() || form.address.length < 10) e.address = "Please enter your full address";
+    if (!form.role) e.role = "Please select a role";
     return e;
   };
 
-  const handleChange = (field: keyof FormData) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (field: keyof FormData) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm((f) => ({ ...f, [field]: e.target.value }));
     setErrors((er) => ({ ...er, [field]: undefined }));
   };
@@ -124,7 +128,7 @@ export function SignUp() {
       setLoading(false);
 
       navigate("/Home", {
-        state: {username: form.username}
+        state: {username: form.username, role: data.role}
       });
 
     } catch (error) {
@@ -139,6 +143,7 @@ export function SignUp() {
     { key: "password", label: "Password", type: "password", placeholder: "Min. 8 characters", Icon: LockIcon },
     { key: "phone", label: "Phone Number", type: "tel", placeholder: "+1 (555) 000-0000", Icon: PhoneIcon },
     { key: "address", label: "Shipping Address", type: "text", placeholder: "123 Main St, City, State, ZIP", Icon: MapPinIcon, multiline: true },
+    { key: "role", label: "Role", type: "select", placeholder: "", Icon: UserIcon },
   ];
 
   return (
@@ -267,6 +272,17 @@ export function SignUp() {
                         rows={2}
                         style={{ ...inputStyle, paddingTop: "10px", paddingBottom: "10px", paddingLeft: "40px", paddingRight: "14px", resize: "none" }}
                       />
+                    ) : type === "select" ? (
+                      <select
+                        value={form[key]}
+                        onChange={handleChange(key)}
+                        onFocus={() => setFocused(key)}
+                        onBlur={() => setFocused(null)}
+                        style={{ ...inputStyle, height: "46px", paddingLeft: "40px", appearance: "none" }}
+                      >
+                        <option value="Buyer">Buyer</option>
+                        <option value="Seller">Seller</option>
+                      </select>
                     ) : (
                       <input
                         type={isPassword && showPassword ? "text" : type}

@@ -51,12 +51,18 @@ const ImageIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="no
 const InfoIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>;
 const StarIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>;
 const ClockIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>;
+const EditIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>;
+const TrashIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>;
 
 export function Home() {
   const navigate = useNavigate();
   const location = useLocation();
 
   const loggedInUser = location.state?.username || "Guest User";
+  const userRole = location.state?.role || "Guest";
+  const isBuyer = userRole === "Buyer";
+  const isSeller = userRole === "Seller";
+  const isAdmin = userRole === "Admin" || loggedInUser === "admin";
 
   const handleEndAuction = async (itemId: string) => {
     try {
@@ -80,6 +86,26 @@ export function Home() {
     }
   };
 
+  const handleDeleteListing = async (itemId: string) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:5000/api/items/${itemId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requester_login: loggedInUser })
+      });
+
+      if (response.ok) {
+        const res = await fetch("http://127.0.0.1:5000/api/items");
+        if (res.ok) setListings(await res.json());
+      } else {
+        const data = await response.json();
+        alert(data.error || "Failed to delete listing.");
+      }
+    } catch (err) {
+      console.error("Error deleting listing:", err);
+    }
+  };
+
   const handleMarkAsRead = async () => {
     if (loggedInUser === "Guest User" || notifications.length === 0) return;
 
@@ -92,7 +118,7 @@ export function Home() {
 
       if (response.ok) {
         console.log("Notifications marked as read in database.");
-        // The database is updated! The next mount will fetch 0 items.
+        // The database is updated. The next mount will fetch 0 items.
       }
     } catch (err) {
       console.error("Failed to clear notifications:", err);
@@ -104,6 +130,20 @@ export function Home() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [showNotifDropdown, setShowNotifDropdown] = useState<boolean>(false);
+  const [editingItem, setEditingItem] = useState<Listing | null>(null);
+
+  const handleEdit = (item: Listing) => {
+    setForm({
+      item_name: item.item_name,
+      category: item.category,
+      starting_price: item.current_bid.toString(),
+      image_url: item.image_url,
+      item_condition: item.item_condition,
+      description: item.description
+    });
+    setEditingItem(item);
+    setActiveTab("sell");
+  };
 
   // Form Management states
   const [form, setForm] = useState<AuctionFormData>({
@@ -176,25 +216,32 @@ export function Home() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://127.0.0.1:5000/auction", {
-        method: "POST",
+      const url = editingItem 
+        ? `http://127.0.0.1:5000/api/items/${editingItem.id}` 
+        : "http://127.0.0.1:5000/auction";
+      const method = editingItem ? "PUT" : "POST";
+
+      const response = await fetch(url, {
+        method: method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          seller_login: loggedInUser
+          seller_login: editingItem ? editingItem.seller_login : loggedInUser,
+          requester_login: loggedInUser
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        setErrors({ item_name: data.error || "Failed to host item." });
+        setErrors({ item_name: data.error || (editingItem ? "Failed to update listing." : "Failed to host item.") });
         setLoading(false);
         return;
       }
 
       setLoading(false);
       setForm({ item_name: "", category: "", starting_price: "", image_url: "", item_condition: "Excellent", description: "" });
+      setEditingItem(null);
       setActiveTab("buy");
     } catch (error) {
       setErrors({ item_name: "Could not reach database server." });
@@ -202,10 +249,18 @@ export function Home() {
     }
   };
 
-  const filteredListings = listings.filter(item => 
-    item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    item.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredListings = listings
+    .filter(item => 
+      item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      item.category.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      const aIsOwn = a.seller_login === loggedInUser;
+      const bIsOwn = b.seller_login === loggedInUser;
+      if (aIsOwn && !bIsOwn) return -1;
+      if (!aIsOwn && bIsOwn) return 1;
+      return 0;
+    });
 
   return (
     <div className="min-h-screen flex flex-col" style={{ fontFamily: "'DM Sans', sans-serif", background: "#fafbff" }}>
@@ -221,8 +276,12 @@ export function Home() {
         </div>
 
         <div className="flex items-center bg-slate-100 p-1 rounded-xl">
-          <button onClick={() => setActiveTab("buy")} className={`px-5 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "buy" ? "bg-white shadow-xs" : "text-slate-500"}`} style={{ color: activeTab === "buy" ? DARK_BLUE : undefined }}>Discover & Buy</button>
-          <button onClick={() => setActiveTab("sell")} className={`px-5 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "sell" ? "bg-white shadow-xs" : "text-slate-500"}`} style={{ color: activeTab === "sell" ? DARK_BLUE : undefined }}>List an Item</button>
+          <button onClick={() => setActiveTab("buy")} className={`px-5 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "buy" ? "bg-white shadow-xs" : "text-slate-500"}`} style={{ color: activeTab === "buy" ? DARK_BLUE : undefined }}>
+            {isSeller || isAdmin ? "Auction Listings" : "Discover & Buy"}
+          </button>
+          {(isSeller || isAdmin) && (
+            <button onClick={() => { setActiveTab("sell"); setEditingItem(null); setForm({ item_name: "", category: "", starting_price: "", image_url: "", item_condition: "Excellent", description: "" }); }} className={`px-5 py-2 text-xs font-semibold rounded-lg transition-all ${activeTab === "sell" ? "bg-white shadow-xs" : "text-slate-500"}`} style={{ color: activeTab === "sell" ? DARK_BLUE : undefined }}>List an Item</button>
+          )}
         </div>
 
         <div className="flex items-center gap-4">
@@ -237,16 +296,16 @@ export function Home() {
                   // 1. Opening the tray: trigger backend database mark-as-read API
                   handleMarkAsRead();
                 } else {
-                  // 2. Closing the tray: now cleanly wipe the UI array so they disappear!
+                  // 2. Closing the tray
                   setNotifications([]);
                 }
               }}
               className="p-2 text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all relative cursor-pointer"
             >
-              {/* Simple Bell Icon */}
+              {/* BELL ICON */}
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
               
-              {/* Unread Indicator Dot */}
+              {/* UNREAD INDICATOR */}
               {notifications.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white font-bold flex items-center justify-center">
                   {notifications.length}
@@ -330,9 +389,31 @@ export function Home() {
                             Condition: {item.item_condition}
                           </span>
                           
-                          <span className="text-[11px] font-medium text-slate-500">
-                            Seller: <span className="font-semibold text-slate-700">@{item.seller_login}</span>
-                          </span>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                              {isAdmin && (
+                                <button 
+                                  onClick={() => handleEdit(item)}
+                                  className="p-1.5 text-slate-400 hover:text-blue-500 bg-slate-50 hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
+                                  title="Edit Listing"
+                                >
+                                  <EditIcon />
+                                </button>
+                              )}
+                              {isAdmin && (
+                                <button 
+                                  onClick={() => handleDeleteListing(item.id)}
+                                  className="p-1.5 text-slate-400 hover:text-red-500 bg-slate-50 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                                  title="Delete Listing"
+                                >
+                                  <TrashIcon />
+                                </button>
+                              )}
+                            </div>
+                            <span className="text-[11px] font-medium text-slate-500">
+                              Seller: <span className="font-semibold text-slate-700">@{item.seller_login}</span>
+                            </span>
+                          </div>
                         </div>
                         
                         <h3 className="font-bold text-base mt-1 mb-1 line-clamp-1" style={{ color: DARK_BLUE }}>
@@ -358,7 +439,7 @@ export function Home() {
                           // Case 1: Auction is closed. 
                           item.tracking_number ? (
                             // Sub-Case: Order checked out. Visible to winning buyer and seller.
-                            (item.winner_login === loggedInUser || item.seller_login === loggedInUser) ? (
+                            (item.winner_login === loggedInUser || item.seller_login === loggedInUser || isAdmin) ? (
                               <button 
                                 onClick={() => navigate("/shipping", {
                                   state: {
@@ -395,7 +476,7 @@ export function Home() {
                               })}
                               className="px-4 py-2 text-xs font-semibold text-white rounded-xl shadow-xs bg-green-600 hover:bg-green-700 transition-colors cursor-pointer"
                             >
-                              Checkout 🎉
+                              Checkout
                             </button>
                           ) : (
                             // Sub-Case: Order not placed yet. Others see winner tag.
@@ -408,14 +489,14 @@ export function Home() {
                           )
                         ) : (
                           // Case 2: Auction is active. 
-                          item.seller_login === loggedInUser ? (
+                          (item.seller_login === loggedInUser || isAdmin) ? (
                             <button 
                               onClick={() => handleEndAuction(item.id)}
                               className="px-4 py-2 text-xs font-semibold text-white rounded-xl shadow-xs bg-red-500 hover:bg-red-600 transition-colors cursor-pointer"
                             >
                               End Auction
                             </button>
-                          ) : (
+                          ) : isBuyer ? (
                             <button 
                               onClick={() => navigate("/bid", {
                                 state: {
@@ -431,6 +512,9 @@ export function Home() {
                             >
                               Place Bid
                             </button>
+                          ) : (
+                            // Seller's will not have a bid button
+                            <h1></h1>
                           )
                         )}
                       </div>
@@ -445,8 +529,8 @@ export function Home() {
         {/* SELL VIEW */}
         {activeTab === "sell" && (
           <div className="max-w-2xl mx-auto bg-white border border-slate-100 p-8 rounded-2xl shadow-xs">
-            <h2 className="text-2xl font-bold mb-1" style={{ color: DARK_BLUE, fontFamily: "'Sora', sans-serif" }}>Host a New Auction</h2>
-            <p className="text-slate-400 text-sm mb-6">List an item.</p>
+            <h2 className="text-2xl font-bold mb-1" style={{ color: DARK_BLUE, fontFamily: "'Sora', sans-serif" }}>{editingItem ? "Edit Listing" : "Host a New Auction"}</h2>
+            <p className="text-slate-400 text-sm mb-6">{editingItem ? `Modifying entry for ${editingItem.item_name}` : "List an item."}</p>
 
             <form onSubmit={handleAuctionSubmit} className="space-y-5">
               <div>
@@ -508,7 +592,7 @@ export function Home() {
               </div>
 
               <button type="submit" disabled={loading} className="w-full flex items-center justify-center gap-2 font-semibold text-sm rounded-xl text-white transition-all disabled:opacity-60" style={{ height: "48px", background: DARK_BLUE }}>
-                {loading ? "Publishing Listing…" : "Launch Marketplace Auction"}
+                {loading ? (editingItem ? "Updating Listing…" : "Publishing Listing…") : (editingItem ? "Save Modifications" : "Launch Marketplace Auction")}
               </button>
             </form>
           </div>
